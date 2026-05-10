@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lecteur EPUB/PDF - v1.0.1</title>
+    <title>Lecteur EPUB/PDF - v1.0.3</title>
     <style>
         :root { --bg-sidebar: #f8f9fa; --bg-main: #ffffff; --border-color: #dee2e6; --highlight: #e9ecef; --active: #007bff; --active-text: #ffffff; --text-main: #333; --text-muted: #6c757d; --sidebar-width: 300px; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); color: var(--text-main); }
@@ -36,27 +36,39 @@
         .badge-epub { background: #d4edda; color: #155724; }
         .badge-pdf { background: #f8d7da; color: #721c24; }
         .empty-state { padding: 40px; text-align: center; color: var(--text-muted); }
+        
+        /* Styles du Lecteur */
         #reader-view { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; z-index: 100; flex-direction: column; }
         #reader-header { background: rgba(0,0,0,0.9); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .controls-top { display: flex; gap: 10px; }
-        .btn-icon { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        .controls-top { display: flex; gap: 10px; align-items: center; }
+        
+        /* Boutons */
+        .btn-icon { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 1rem; display: flex; justify-content: center; align-items: center; }
         .btn-icon:hover { background: rgba(255,255,255,0.4); }
-        .btn-close { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+        .btn-close { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        
         #viewer-container { flex: 1; position: relative; background: #555; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         #epub-viewer { width: 100%; height: 100%; display: block; background: white; }
         #epub-viewer iframe { width: 100%; height: 100%; border: none; }
         canvas { max-width: 95%; max-height: 90vh; box-shadow: 0 0 15px rgba(0,0,0,0.5); background: white; }
-        .controls-bottom { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 30px; display: flex; gap: 15px; color: white; align-items: center; z-index: 20; backdrop-filter: blur(5px); }
-        .controls-bottom button { background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1rem; }
-        .controls-bottom button:hover { background: rgba(255,255,255,0.4); }
-        #page-info { font-size: 0.9em; min-width: 100px; text-align: center; font-variant-numeric: tabular-nums; }
+        
+        /* Contrôles de navigation (déplacés en haut) */
+        .nav-controls { display: flex; align-items: center; gap: 10px; margin-left: 15px; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 15px; }
+        .nav-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 1.2rem; display: flex; justify-content: center; align-items: center; }
+        .nav-btn:hover { background: rgba(255,255,255,0.4); }
+        .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        #page-info { font-size: 0.9em; min-width: 80px; text-align: center; font-variant-numeric: tabular-nums; color: #ddd; }
+
         #toc-sidebar { position: absolute; top: 60px; left: 0; width: 300px; bottom: 0; background: rgba(30,30,30,0.95); color: white; transform: translateX(-100%); transition: transform 0.3s; overflow-y: auto; z-index: 30; border-right: 1px solid #444; }
         #toc-sidebar.open { transform: translateX(0); }
         .toc-item { padding: 10px 20px; border-bottom: 1px solid #444; cursor: pointer; font-size: 0.9rem; }
         .toc-item:hover { background: rgba(255,255,255,0.1); }
+        
         .loader-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 50; color: white; }
         .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+        
         body.dark-mode { --bg-sidebar: #2c2c2c; --bg-main: #1e1e1e; --border-color: #444; --highlight: #333; --text-main: #e0e0e0; --text-muted: #aaa; }
     </style>
 
@@ -98,15 +110,21 @@
 <!-- Lecteur -->
 <div id="reader-view">
     <div id="reader-header">
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center;">
             <button class="btn-close" onclick="closeReader()">✕ Fermer</button>
-            <span id="reader-filename" style="font-weight:500; opacity:0.9;">Livre</span>
+            <span id="reader-filename" style="font-weight:500; opacity:0.9; margin-right: 15px;">Livre</span>
+            
+            <!-- Navigation déplacée ici -->
+            <div class="nav-controls">
+                <button class="nav-btn" id="nav-prev" onclick="prevPage()" title="Précédent">❮</button>
+                <span id="page-info">--</span>
+                <button class="nav-btn" id="nav-next" onclick="nextPage()" title="Suivant">❯</button>
+            </div>
         </div>
+
         <div class="controls-top">
             <button class="btn-icon" id="btn-toc" onclick="toggleToc()" title="Sommaire">☰</button>
-            <!-- NOUVEAU BOUTON : Mode 1/2 Pages -->
             <button class="btn-icon" id="btn-spread" onclick="toggleSpread()" title="Changer mode d'affichage (1 ou 2 pages)">📖</button>
-            
             <button class="btn-icon" id="btn-zoom-out" onclick="adjustFontSize(-1)" title="Réduire texte">A-</button>
             <button class="btn-icon" id="btn-zoom-in" onclick="adjustFontSize(1)" title="Agrandir texte">A+</button>
             <button class="btn-icon" id="btn-theme" onclick="toggleTheme()" title="Mode Sombre/Clair">🌙</button>
@@ -119,22 +137,18 @@
             <span id="loader-text">Chargement...</span>
         </div>
     </div>
-    <div class="controls-bottom">
-        <button onclick="prevPage()">❮</button>
-        <span id="page-info">--</span>
-        <button onclick="nextPage()">❯</button>
-    </div>
+    <!-- Contrôles du bas supprimés -->
 </div>
 
 <script>
     // --- CONFIGURATION ---
-    const APP_VERSION = "1.0.1"; // Version affichée dans l'en-tête
+    const APP_VERSION = "1.0.2"; 
 
     // --- LOGIQUE JAVASCRIPT ---
     let allFiles = [], rootFolder = { name: "Racine", path: "", children: {}, files: [] };
     let epubBook = null, epubRendition = null, pdfDoc = null, pdfPageNum = 1;
     let currentFontSize = 100, isDarkMode = false, currentFileType = '';
-    let isTwoPageMode = false; // État par défaut : 1 page
+    let isTwoPageMode = false; 
 
     const fileInput = document.getElementById('file-input');
     const treeContainer = document.getElementById('folder-tree-container');
@@ -154,6 +168,8 @@
     const btnTheme = document.getElementById('btn-theme');
     const sidebar = document.getElementById('sidebar');
     const resizer = document.getElementById('resizer');
+    const navPrev = document.getElementById('nav-prev');
+    const navNext = document.getElementById('nav-next');
 
     // Redimensionnement
     let isResizing = false;
@@ -264,10 +280,14 @@
         
         const isEpub = currentFileType === 'epub';
         btnToc.style.display = isEpub ? 'flex' : 'none';
-        btnSpread.style.display = isEpub ? 'flex' : 'none'; // Afficher le bouton spread seulement pour EPUB
+        btnSpread.style.display = isEpub ? 'flex' : 'none';
         btnZoomIn.style.display = isEpub ? 'flex' : 'none';
         btnZoomOut.style.display = isEpub ? 'flex' : 'none';
         btnTheme.style.display = isEpub ? 'flex' : 'none';
+        
+        // Afficher/Masquer la navigation selon le type
+        const navControls = document.querySelector('.nav-controls');
+        if(navControls) navControls.style.display = isEpub || currentFileType === 'pdf' ? 'flex' : 'none';
 
         if (isEpub) loadEpub(file);
         else loadPdf(file);
@@ -281,7 +301,6 @@
         isDarkMode = false;
     }
 
-    // --- FONCTION CORRIGÉE POUR ÉVITER LES ERREURS CORS ET CSP ---
     function loadEpub(file) {
         const loaderText = document.getElementById('loader-text');
         loaderText.innerText = "Chargement du livre en mémoire...";
@@ -292,10 +311,9 @@
             const buffer = e.target.result;
             
             try {
-                // Lecture via ArrayBuffer pour éviter les requêtes HTTP vers GitHub
                 epubBook = ePub(buffer, {
                     reload: false,
-                    allowScriptedContent: false // Désactive l'exécution de scripts internes (évite erreur CSP)
+                    allowScriptedContent: false
                 }); 
                 
                 const div = document.createElement('div');
@@ -307,17 +325,9 @@
                 viewerContainer.innerHTML = ''; 
                 viewerContainer.appendChild(div);
 
-                // Configuration par défaut : 1 page (spread: 'none')
-                epubRendition = epubBook.renderTo("epub-viewer", {
-                    width: "100%",
-                    height: "100%",
-                    flow: "paginated",
-                    manager: "default",
-                    spread: 'none',        // Démarrage en 1 page
-                    minSpreadWidth: 9999   // Empêche le passage automatique en 2 pages
-                });
+                // Initialisation par défaut en 1 page
+                initEpubRendition('none');
                 
-                // Initialisation de l'état du bouton
                 isTwoPageMode = false;
 
                 epubRendition.on("rendered", function() {
@@ -335,11 +345,6 @@
 
                 epubRendition.display().catch(err => {
                     console.error("Erreur d'affichage:", err);
-                    if(err.message.includes('eval') || err.message.includes('CSP')) {
-                         alert("Le livre contient des scripts non autorisés, mais l'affichage devrait fonctionner.");
-                    } else {
-                         alert("Erreur : " + err.message);
-                    }
                     document.getElementById('loader').style.display = 'none';
                 });
 
@@ -364,37 +369,84 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // --- NOUVELLE FONCTION : BASCULER 1 PAGE / 2 PAGES ---
+    // --- FONCTION CORRIGÉE : RECRÉATION DU RENDU POUR CHANGER DE MODE ---
     function toggleSpread() {
-        if (!epubRendition) return;
+        if (!epubBook || !document.getElementById('epub-viewer')) return;
 
-        isTwoPageMode = !isTwoPageMode; // Inverse l'état
-
-        if (isTwoPageMode) {
-            // Mode 2 pages
-            epubRendition.manager.spread('auto'); 
-            epubRendition.settings.spread = 'auto';
-        } else {
-            // Mode 1 page
-            epubRendition.manager.spread('none');
-            epubRendition.settings.spread = 'none';
-        }
+        isTwoPageMode = !isTwoPageMode;
+        const spreadMode = isTwoPageMode ? 'auto' : 'none';
         
-        // Force le recalcul de l'affichage
-        epubRendition.resize();
+        // Sauvegarder la position actuelle si possible
+        let currentLocation = null;
+        if(epubRendition) {
+            currentLocation = epubRendition.currentLocation();
+        }
+
+        // Détruire l'ancien rendu
+        if (epubRendition) {
+            epubRendition.destroy();
+            epubRendition = null;
+        }
+
+        // Recréer le rendu avec le nouveau mode
+        initEpubRendition(spreadMode);
+
+        // Restaurer la position si on l'a
+        if(currentLocation && currentLocation.then) {
+            currentLocation.then(loc => {
+                if(loc && loc.start) epubRendition.display(loc.start.cfi);
+            });
+        } else if (currentLocation) {
+             // Fallback simple
+             epubRendition.display();
+        }
+    }
+
+    function initEpubRendition(spreadSetting) {
+        const div = document.getElementById('epub-viewer');
+        if(!div) return;
+
+        epubRendition = epubBook.renderTo("epub-viewer", {
+            width: "100%",
+            height: "100%",
+            flow: "paginated",
+            manager: "default",
+            spread: spreadSetting,
+            minSpreadWidth: spreadSetting === 'none' ? 9999 : 800
+        });
+
+        // Réattacher les écouteurs d'événements
+        epubRendition.on("rendered", function() {
+            document.getElementById('loader').style.display = 'none';
+            updateEpubLocation();
+        });
+        epubRendition.on("relocated", function(location) {
+            updateEpubLocation(location);
+        });
+        
+        // Réappliquer le thème et la taille
+        if (isDarkMode) applyEpubTheme(true); else applyEpubTheme(false);
+        epubRendition.themes.fontSize(currentFontSize + "%");
     }
 
     function updateEpubLocation(location) {
+        const updateInfo = (percent) => {
+            pageInfo.innerText = `${percent}% lu`;
+            // Gestion visuelle des boutons (optionnel)
+            if(navPrev) navPrev.disabled = (percent <= 5);
+            if(navNext) navNext.disabled = (percent >= 95);
+        };
+
         if (!location && epubRendition) {
             epubRendition.currentLocation().then(loc => {
                 if (loc && loc.start) {
                     const percent = loc.start.percentage ? Math.round(loc.start.percentage * 100) : '?';
-                    pageInfo.innerText = `${percent}% lu`;
+                    updateInfo(percent);
                 }
             });
         } else if (location && location.start) {
             const percent = location.start.percentage ? Math.round(location.start.percentage * 100) : '?';
-            pageInfo.innerText = `${percent}% lu`;
+            updateInfo(percent);
         } else {
             pageInfo.innerText = "Début";
         }
@@ -419,6 +471,7 @@
     }
 
     function toggleToc() { tocSidebar.classList.toggle('open'); }
+    
     function adjustFontSize(delta) {
         if (!epubRendition) return;
         currentFontSize += (delta * 10);
@@ -426,11 +479,13 @@
         if (currentFontSize > 200) currentFontSize = 200;
         epubRendition.themes.fontSize(currentFontSize + "%");
     }
+    
     function toggleTheme() {
         isDarkMode = !isDarkMode;
         document.body.classList.toggle('dark-mode', isDarkMode);
         if (currentFileType === 'epub') applyEpubTheme(isDarkMode);
     }
+    
     function applyEpubTheme(dark) {
         if (!epubRendition) return;
         if (dark) {
@@ -474,7 +529,6 @@
     }
 </script>
 
-<!-- SCRIPT FINAL POUR AFFICHER LA VERSION DANS L'EN-TÊTE -->
 <script>
     window.addEventListener('load', function() {
         const versionEl = document.getElementById('app-version');
