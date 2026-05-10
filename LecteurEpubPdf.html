@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur EPUB/PDF - Version Locale</title>
+    <style>
+        :root { --bg-sidebar: #f8f9fa; --bg-main: #ffffff; --border-color: #dee2e6; --highlight: #e9ecef; --active: #007bff; --active-text: #ffffff; --text-main: #333; --text-muted: #6c757d; --sidebar-width: 300px; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); color: var(--text-main); }
+        header { background: #2c3e50; color: #fff; padding: 0.8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; z-index: 10; }
+        h1 { margin: 0; font-size: 1.1rem; }
+        #file-input { display: none; }
+        .btn { background: #3498db; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer; border: none; font-size: 0.9rem; }
+        .btn:hover { background: #2980b9; }
+        #main-container { display: flex; flex: 1; overflow: hidden; }
+        #sidebar { width: var(--sidebar-width); min-width: 200px; max-width: 600px; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .panel-header { padding: 10px 15px; font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: bold; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.05); }
+        #folder-tree-container { flex: 1; overflow-y: auto; }
+        .tree-node { list-style: none; padding: 0; margin: 0; }
+        .tree-item { display: flex; align-items: center; padding: 6px 10px; cursor: pointer; font-size: 0.95rem; user-select: none; }
+        .tree-item:hover { background: var(--highlight); }
+        .tree-item.active { background: var(--active); color: var(--active-text); }
+        .tree-toggle { width: 20px; text-align: center; margin-right: 5px; font-size: 0.7em; transition: transform 0.2s; }
+        .tree-item.expanded > .tree-content > .tree-toggle { transform: rotate(90deg); }
+        .tree-item.leaf > .tree-content > .tree-toggle { visibility: hidden; }
+        .tree-content { display: flex; align-items: center; flex: 1; overflow: hidden; }
+        .tree-icon { margin-right: 8px; }
+        .tree-children { display: none; padding-left: 20px; }
+        .tree-children.open { display: block; }
+        #resizer { width: 5px; cursor: col-resize; background: transparent; }
+        #resizer:hover { background: #007bff; }
+        #file-list-panel { flex: 1; background: var(--bg-main); overflow-y: auto; display: flex; flex-direction: column; }
+        .file-item { padding: 12px 20px; border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; }
+        .file-item:hover { background: var(--highlight); }
+        .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: bold; text-transform: uppercase; }
+        .badge-epub { background: #d4edda; color: #155724; }
+        .badge-pdf { background: #f8d7da; color: #721c24; }
+        .empty-state { padding: 40px; text-align: center; color: var(--text-muted); }
+        #reader-view { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; z-index: 100; flex-direction: column; }
+        #reader-header { background: rgba(0,0,0,0.9); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .controls-top { display: flex; gap: 10px; }
+        .btn-icon { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        .btn-icon:hover { background: rgba(255,255,255,0.4); }
+        .btn-close { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+        #viewer-container { flex: 1; position: relative; background: #555; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #epub-viewer { width: 100%; height: 100%; display: block; background: white; }
+        #epub-viewer iframe { width: 100%; height: 100%; border: none; }
+        canvas { max-width: 95%; max-height: 90vh; box-shadow: 0 0 15px rgba(0,0,0,0.5); background: white; }
+        .controls-bottom { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 30px; display: flex; gap: 15px; color: white; align-items: center; z-index: 20; backdrop-filter: blur(5px); }
+        .controls-bottom button { background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1rem; }
+        .controls-bottom button:hover { background: rgba(255,255,255,0.4); }
+        #page-info { font-size: 0.9em; min-width: 100px; text-align: center; font-variant-numeric: tabular-nums; }
+        #toc-sidebar { position: absolute; top: 60px; left: 0; width: 300px; bottom: 0; background: rgba(30,30,30,0.95); color: white; transform: translateX(-100%); transition: transform 0.3s; overflow-y: auto; z-index: 30; border-right: 1px solid #444; }
+        #toc-sidebar.open { transform: translateX(0); }
+        .toc-item { padding: 10px 20px; border-bottom: 1px solid #444; cursor: pointer; font-size: 0.9rem; }
+        .toc-item:hover { background: rgba(255,255,255,0.1); }
+        .loader-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 50; color: white; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        body.dark-mode { --bg-sidebar: #2c2c2c; --bg-main: #1e1e1e; --border-color: #444; --highlight: #333; --text-main: #e0e0e0; --text-muted: #aaa; }
+    </style>
+
+    <!-- CHARGEMENT DES FICHIERS LOCAUX (Assurez-vous qu'ils sont dans le même dossier) -->
+    <script src="jszip.min.js"></script>
+    <script src="ePub.min.js"></script>
+    
+    <!-- PDF.js (CDN pour simplicité, ou téléchargez-le aussi localement) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if(typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+</head>
+<body>
+
+<header>
+    <h1>Bibliothèque Locale</h1>
+    <label for="file-input" class="btn">📂 Ouvrir un dossier</label>
+    <input type="file" id="file-input" webkitdirectory multiple accept=".epub,.pdf">
+</header>
+
+<div id="main-container">
+    <div id="sidebar">
+        <div class="panel-header">Dossiers</div>
+        <div id="folder-tree-container"><div class="empty-state">Sélectionnez un dossier.</div></div>
+    </div>
+    <div id="resizer"></div>
+    <div id="file-list-panel">
+        <div class="panel-header">Fichiers : <span id="current-folder-name">...</span></div>
+        <div id="file-list-content"><div class="empty-state">Sélectionnez un dossier à gauche.</div></div>
+    </div>
+</div>
+
+<!-- Lecteur -->
+<div id="reader-view">
+    <div id="reader-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button class="btn-close" onclick="closeReader()">✕ Fermer</button>
+            <span id="reader-filename" style="font-weight:500; opacity:0.9;">Livre</span>
+        </div>
+        <div class="controls-top">
+            <button class="btn-icon" id="btn-toc" onclick="toggleToc()">☰</button>
+            <button class="btn-icon" id="btn-zoom-out" onclick="adjustFontSize(-1)">A-</button>
+            <button class="btn-icon" id="btn-zoom-in" onclick="adjustFontSize(1)">A+</button>
+            <button class="btn-icon" id="btn-theme" onclick="toggleTheme()">🌙</button>
+        </div>
+    </div>
+    <div id="toc-sidebar"></div>
+    <div id="viewer-container">
+        <div id="loader" class="loader-overlay">
+            <div class="spinner"></div>
+            <span id="loader-text">Chargement...</span>
+        </div>
+    </div>
+    <div class="controls-bottom">
+        <button onclick="prevPage()">❮</button>
+        <span id="page-info">--</span>
+        <button onclick="nextPage()">❯</button>
+    </div>
+</div>
+
+<script>
+    // --- LOGIQUE JAVASCRIPT ---
+    let allFiles = [], rootFolder = { name: "Racine", path: "", children: {}, files: [] };
+    let epubBook = null, epubRendition = null, pdfDoc = null, pdfPageNum = 1;
+    let currentFontSize = 100, isDarkMode = false, currentFileType = '';
+
+    const fileInput = document.getElementById('file-input');
+    const treeContainer = document.getElementById('folder-tree-container');
+    const fileListContentEl = document.getElementById('file-list-content');
+    const currentFolderNameEl = document.getElementById('current-folder-name');
+    const readerView = document.getElementById('reader-view');
+    const viewerContainer = document.getElementById('viewer-container');
+    const loader = document.getElementById('loader');
+    const loaderText = document.getElementById('loader-text');
+    const pageInfo = document.getElementById('page-info');
+    const readerFilename = document.getElementById('reader-filename');
+    const tocSidebar = document.getElementById('toc-sidebar');
+    const btnToc = document.getElementById('btn-toc');
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const btnTheme = document.getElementById('btn-theme');
+    const sidebar = document.getElementById('sidebar');
+    const resizer = document.getElementById('resizer');
+
+    // Redimensionnement
+    let isResizing = false;
+    resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.userSelect = 'none'; });
+    document.addEventListener('mousemove', (e) => { if(!isResizing) return; let w = e.clientX; if(w<200)w=200; if(w>800)w=800; sidebar.style.width = w+'px'; });
+    document.addEventListener('mouseup', () => { isResizing = false; document.body.style.userSelect = ''; });
+
+    // Chargement Fichiers
+    fileInput.addEventListener('change', (e) => {
+        // Vérification des bibliothèques locales
+        if (typeof ePub === 'undefined') {
+            alert("ERREUR CRITIQUE : Le fichier 'ePub.min.js' est manquant ou mal nommé dans le dossier.\nVeuillez le télécharger et le placer à côté de ce fichier HTML.");
+            return;
+        }
+        if (typeof JSZip === 'undefined') {
+            alert("ERREUR CRITIQUE : Le fichier 'jszip.min.js' est manquant ou mal nommé dans le dossier.");
+            return;
+        }
+
+        allFiles = Array.from(e.target.files).filter(f => f.name.endsWith('.epub') || f.name.endsWith('.pdf'));
+        if (allFiles.length === 0) return alert("Aucun EPUB/PDF trouvé.");
+        
+        buildTree(allFiles);
+        renderTree();
+        selectFolder("", document.querySelector('.tree-item'));
+    });
+
+    function buildTree(files) {
+        rootFolder = { name: "Racine", path: "", children: {}, files: [] };
+        files.forEach(file => {
+            let parts = file.webkitRelativePath ? file.webkitRelativePath.split('/') : [file.name];
+            parts.pop();
+            let node = rootFolder;
+            parts.forEach((part, i) => {
+                if (!node.children[part]) node.children[part] = { name: part, path: parts.slice(0,i+1).join('/'), children: {}, files: [] };
+                node = node.children[part];
+            });
+            node.files.push(file);
+        });
+    }
+
+    function renderTree() {
+        treeContainer.innerHTML = '';
+        const ul = document.createElement('ul'); ul.className = 'tree-node';
+        const rootLi = document.createElement('li'); rootLi.className = 'tree-node';
+        const rootDiv = document.createElement('div'); rootDiv.className = 'tree-item expanded'; rootDiv.dataset.path = "";
+        rootDiv.innerHTML = `<span class="tree-toggle" style="transform:rotate(90deg)">▶</span><div class="tree-content"><span class="tree-icon">📂</span><span>Tous les fichiers</span></div>`;
+        const childUl = document.createElement('ul'); childUl.className = 'tree-children open';
+        rootDiv.onclick = (e) => { e.stopPropagation(); selectFolder("", rootDiv); };
+        rootLi.appendChild(rootDiv); rootLi.appendChild(childUl);
+        Object.keys(rootFolder.children).sort().forEach(k => childUl.appendChild(createNode(rootFolder.children[k])));
+        ul.appendChild(rootLi); treeContainer.appendChild(ul);
+    }
+
+    function createNode(node) {
+        const hasChildren = Object.keys(node.children).length > 0;
+        const li = document.createElement('li'); li.className = 'tree-node';
+        const div = document.createElement('div'); div.className = 'tree-item' + (hasChildren ? '' : ' leaf'); div.dataset.path = node.path;
+        div.innerHTML = `<span class="tree-toggle">▶</span><div class="tree-content"><span class="tree-icon">📁</span><span>${node.name}</span></div>`;
+        const toggle = div.querySelector('.tree-toggle');
+        const content = div.querySelector('.tree-content');
+        toggle.onclick = (e) => { e.stopPropagation(); div.classList.toggle('expanded'); const ul = li.querySelector('.tree-children'); if(ul) ul.classList.toggle('open'); };
+        content.onclick = (e) => { e.stopPropagation(); selectFolder(node.path, div); if(hasChildren && !div.classList.contains('expanded')) { div.classList.add('expanded'); const ul = li.querySelector('.tree-children'); if(ul) ul.classList.add('open'); } };
+        li.appendChild(div);
+        if (hasChildren) {
+            const ul = document.createElement('ul'); ul.className = 'tree-children';
+            Object.keys(node.children).sort().forEach(k => ul.appendChild(createNode(node.children[k])));
+            li.appendChild(ul);
+        }
+        return li;
+    }
+
+    function selectFolder(path, el) {
+        document.querySelectorAll('.tree-item').forEach(e => e.classList.remove('active'));
+        if (el) el.classList.add('active');
+        currentFolderNameEl.innerText = path === "" ? "Tous les fichiers" : path;
+        let files = path === "" ? allFiles : findFiles(rootFolder, path);
+        if (!files) files = [];
+        files.sort((a,b) => a.name.localeCompare(b.name));
+        fileListContentEl.innerHTML = '';
+        if (files.length === 0) { fileListContentEl.innerHTML = '<div class="empty-state">Aucun livre.</div>'; return; }
+        files.forEach(f => {
+            const type = f.name.endsWith('.epub') ? 'EPUB' : 'PDF';
+            const cls = type === 'EPUB' ? 'badge-epub' : 'badge-pdf';
+            const div = document.createElement('div'); div.className = 'file-item';
+            div.innerHTML = `<span>${f.name}</span><span class="badge ${cls}">${type}</span>`;
+            div.onclick = () => openReader(f);
+            fileListContentEl.appendChild(div);
+        });
+    }
+
+    function findFiles(node, path) {
+        if (node.path === path) return node.files;
+        for (let k in node.children) { const r = findFiles(node.children[k], path); if (r) return r; }
+        return null;
+    }
+
+    // Lecteur
+    function openReader(file) {
+        readerView.style.display = 'flex';
+        readerFilename.innerText = file.name;
+        tocSidebar.classList.remove('open');
+        currentFileType = file.name.endsWith('.epub') ? 'epub' : 'pdf';
+        viewerContainer.innerHTML = '';
+        viewerContainer.appendChild(loader);
+        loader.style.display = 'flex';
+        loaderText.innerText = "Initialisation...";
+        pageInfo.innerText = "--";
+        
+        const isEpub = currentFileType === 'epub';
+        btnToc.style.display = isEpub ? 'flex' : 'none';
+        btnZoomIn.style.display = isEpub ? 'flex' : 'none';
+        btnZoomOut.style.display = isEpub ? 'flex' : 'none';
+        btnTheme.style.display = isEpub ? 'flex' : 'none';
+
+        if (isEpub) loadEpub(file);
+        else loadPdf(file);
+    }
+
+    function closeReader() {
+        readerView.style.display = 'none';
+        if (epubRendition) { epubRendition.destroy(); epubRendition = null; }
+        epubBook = null; pdfDoc = null;
+        document.body.classList.remove('dark-mode');
+        isDarkMode = false;
+    }
+
+    function loadEpub(file) {
+        const url = URL.createObjectURL(file);
+        epubBook = ePub(url);
+        const div = document.createElement('div');
+        div.id = 'epub-viewer';
+        div.style.width = '100%'; div.style.height = '100%'; div.style.background = '#fff';
+        viewerContainer.insertBefore(div, loader);
+
+        epubRendition = epubBook.renderTo("epub-viewer", { width: "100%", height: "100%", flow: "paginated", manager: "default" });
+
+        epubRendition.on("rendered", function() {
+            loader.style.display = 'none';
+            updateEpubLocation();
+        });
+        epubRendition.on("relocated", function(location) { updateEpubLocation(location); });
+
+        if (epubBook.loaded && epubBook.loaded.navigation) {
+            epubBook.loaded.navigation.then(toc => renderToc(toc)).catch(() => {});
+        }
+
+        epubRendition.display().catch(err => {
+            loader.style.display = 'none';
+            alert("Erreur EPUB: " + err.message);
+        });
+
+        currentFontSize = 100;
+        if (isDarkMode) applyEpubTheme(true); else applyEpubTheme(false);
+        window.nextPage = () => epubRendition.next();
+        window.prevPage = () => epubRendition.prev();
+    }
+
+    function updateEpubLocation(location) {
+        if (!location && epubRendition) {
+            epubRendition.currentLocation().then(loc => {
+                if (loc && loc.start) {
+                    const percent = loc.start.percentage ? Math.round(loc.start.percentage * 100) : '?';
+                    pageInfo.innerText = `${percent}% lu`;
+                }
+            });
+        } else if (location && location.start) {
+            const percent = location.start.percentage ? Math.round(location.start.percentage * 100) : '?';
+            pageInfo.innerText = `${percent}% lu`;
+        } else {
+            pageInfo.innerText = "Début";
+        }
+    }
+
+    function renderToc(toc) {
+        tocSidebar.innerHTML = '<div class="panel-header" style="color:white;border-bottom:1px solid #555">Sommaire</div>';
+        if (!toc || toc.length === 0) { tocSidebar.innerHTML += '<div class="toc-item">Aucun sommaire.</div>'; return; }
+        toc.forEach(item => {
+            const d = document.createElement('div'); d.className = 'toc-item'; d.innerText = item.label;
+            d.onclick = () => { epubRendition.display(item.href); tocSidebar.classList.remove('open'); };
+            tocSidebar.appendChild(d);
+            if (item.subitems) {
+                item.subitems.forEach(sub => {
+                    const s = document.createElement('div'); s.className = 'toc-item'; s.style.paddingLeft = '30px'; s.style.fontSize = '0.85em';
+                    s.innerText = sub.label;
+                    s.onclick = () => { epubRendition.display(sub.href); tocSidebar.classList.remove('open'); };
+                    tocSidebar.appendChild(s);
+                });
+            }
+        });
+    }
+
+    function toggleToc() { tocSidebar.classList.toggle('open'); }
+    function adjustFontSize(delta) {
+        if (!epubRendition) return;
+        currentFontSize += (delta * 10);
+        if (currentFontSize < 50) currentFontSize = 50;
+        if (currentFontSize > 200) currentFontSize = 200;
+        epubRendition.themes.fontSize(currentFontSize + "%");
+    }
+    function toggleTheme() {
+        isDarkMode = !isDarkMode;
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        if (currentFileType === 'epub') applyEpubTheme(isDarkMode);
+    }
+    function applyEpubTheme(dark) {
+        if (!epubRendition) return;
+        if (dark) {
+            epubRendition.themes.register("dark", { body: { background: "#121212", color: "#dcdcdc" }, p: { background: "#121212", color: "#dcdcdc" } });
+            epubRendition.themes.select("dark");
+        } else {
+            epubRendition.themes.select("default");
+        }
+    }
+
+    async function loadPdf(file) {
+        const url = URL.createObjectURL(file);
+        try {
+            if (typeof pdfjsLib === 'undefined') throw new Error("PDF.js non chargé");
+            pdfDoc = await pdfjsLib.getDocument(url).promise;
+            loader.style.display = 'none';
+            pdfPageNum = 1;
+            pageInfo.innerText = `1 / ${pdfDoc.numPages}`;
+            renderPdfPage(1);
+        } catch (e) {
+            loader.style.display = 'none';
+            alert("Erreur PDF: " + e.message);
+            closeReader();
+        }
+        window.nextPage = () => { if (pdfPageNum < pdfDoc.numPages) { pdfPageNum++; renderPdfPage(pdfPageNum); pageInfo.innerText = `${pdfPageNum}/${pdfDoc.numPages}`; } };
+        window.prevPage = () => { if (pdfPageNum > 1) { pdfPageNum--; renderPdfPage(pdfPageNum); pageInfo.innerText = `${pdfPageNum}/${pdfDoc.numPages}`; } };
+    }
+
+    function renderPdfPage(num) {
+        const existingCanvas = viewerContainer.querySelector('canvas');
+        if (existingCanvas) existingCanvas.remove();
+        pdfDoc.getPage(num).then(page => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const viewport = page.getViewport({ scale: 1.5 });
+            canvas.height = viewport.height; canvas.width = viewport.width;
+            canvas.style.maxWidth = '95%'; canvas.style.maxHeight = '90vh';
+            viewerContainer.appendChild(canvas);
+            page.render({ canvasContext: ctx, viewport: viewport });
+        });
+    }
+</script>
+
+</body>
+</html>
