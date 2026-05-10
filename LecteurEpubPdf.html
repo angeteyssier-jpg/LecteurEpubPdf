@@ -3,31 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lecteur EPUB/PDF - v1.1.1 Tactile</title>
+    <title>Lecteur EPUB/PDF - v1.1.2 Fix</title>
     <style>
         :root { 
             --bg-sidebar: #f8f9fa; --bg-main: #ffffff; --border-color: #dee2e6; 
             --highlight: #e9ecef; --active: #007bff; --active-text: #ffffff; 
             --text-main: #333; --text-muted: #6c757d; --sidebar-width: 280px; 
-            --item-height: 36px; /* Hauteur réduite pour les listes */
+            --item-height: 36px;
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); color: var(--text-main); touch-action: pan-y; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); color: var(--text-main); }
         
-        /* Header Principal */
         header { background: #2c3e50; color: #fff; padding: 0.6rem 1rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; z-index: 10; height: 50px; }
         h1 { margin: 0; font-size: 1rem; font-weight: 600; }
         #file-input { display: none; }
         .btn { background: #3498db; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; border: none; font-size: 0.85rem; font-weight: 500; }
         
-        /* Conteneur Principal */
         #main-container { display: flex; flex: 1; overflow: hidden; }
-        
-        /* Sidebar & Listes */
         #sidebar { width: var(--sidebar-width); min-width: 200px; max-width: 100%; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
         .panel-header { padding: 8px 12px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.03); height: 30px; box-sizing: border-box; display: flex; align-items: center; }
         #folder-tree-container, #file-list-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         
-        /* Optimisation des listes (Taille réduite) */
         .tree-node { list-style: none; padding: 0; margin: 0; }
         .tree-item { display: flex; align-items: center; padding: 0 10px; height: var(--item-height); cursor: pointer; font-size: 0.85rem; user-select: none; border-bottom: 1px solid rgba(0,0,0,0.05); }
         .tree-item:hover { background: var(--highlight); }
@@ -37,9 +32,9 @@
         .tree-item.leaf > .tree-content > .tree-toggle { visibility: hidden; }
         .tree-content { display: flex; align-items: center; flex: 1; overflow: hidden; white-space: nowrap; }
         .tree-icon { margin-right: 8px; font-size: 0.9em; }
-        .tree-children { display: none; padding-left: 0; } /* Indentation gérée par JS ou CSS si besoin, ici simplifié */
+        .tree-children { display: none; padding-left: 0; }
         .tree-children.open { display: block; }
-        .tree-children .tree-item { padding-left: 30px; } /* Indentation manuelle */
+        .tree-children .tree-item { padding-left: 30px; }
         .tree-children .tree-children .tree-item { padding-left: 50px; }
 
         #file-list-panel { flex: 1; background: var(--bg-main); overflow-y: auto; display: flex; flex-direction: column; }
@@ -50,7 +45,6 @@
         .badge-pdf { background: #f8d7da; color: #721c24; }
         .empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
 
-        /* Lecteur */
         #reader-view { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; z-index: 100; flex-direction: column; }
         #reader-header { background: rgba(0,0,0,0.95); color: white; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; height: 50px; box-sizing: border-box; }
         .header-left { display: flex; align-items: center; overflow: hidden; flex: 1; }
@@ -60,13 +54,14 @@
         
         .controls-top { display: flex; gap: 8px; align-items: center; }
         .btn-icon { background: rgba(255,255,255,0.15); border: none; color: white; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 1rem; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+        .btn-icon:hover { background: rgba(255,255,255,0.3); }
         
-        #viewer-container { flex: 1; position: relative; background: #555; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; /* CRUCIAL POUR LE SWIPE */ }
+        /* Zone de lecture : Scroll autorisé par défaut pour PC */
+        #viewer-container { flex: 1; position: relative; background: #555; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         #epub-viewer { width: 100%; height: 100%; background: white; }
         #epub-viewer iframe { width: 100%; height: 100%; border: none; }
         canvas { max-width: 100%; max-height: 100%; background: white; }
 
-        /* Contrôles Mobile (Bas) */
         #mobile-controls {
             display: none; background: rgba(20, 20, 20, 0.98); border-top: 1px solid #444;
             padding: 8px 5px; justify-content: space-between; align-items: center;
@@ -76,7 +71,6 @@
         .mobile-btn { background: rgba(255,255,255,0.15); border: none; color: white; width: 40px; height: 40px; border-radius: 8px; cursor: pointer; font-size: 1.2rem; display: flex; justify-content: center; align-items: center; }
         .mobile-btn:active { background: rgba(255,255,255,0.3); }
 
-        /* Sommaire Latéral */
         #toc-sidebar { position: absolute; top: 50px; left: 0; width: 85%; max-width: 280px; bottom: 0; background: rgba(25, 25, 25, 0.98); color: white; transform: translateX(-100%); transition: transform 0.25s ease-out; overflow-y: auto; z-index: 40; border-right: 1px solid #444; box-shadow: 2px 0 10px rgba(0,0,0,0.5); }
         #toc-sidebar.open { transform: translateX(0); }
         .toc-header { padding: 10px 15px; background: rgba(0,0,0,0.3); display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: bold; position: sticky; top: 0; }
@@ -90,20 +84,17 @@
 
         body.dark-mode { --bg-sidebar: #2c2c2c; --bg-main: #1e1e1e; --border-color: #444; --highlight: #3a3a3a; --text-main: #e0e0e0; --text-muted: #aaa; }
 
-        /* MEDIA QUERIES MOBILE */
         @media (max-width: 768px) {
             :root { --sidebar-width: 100%; }
             #main-container { flex-direction: column; }
             #sidebar { width: 100%; height: 50%; border-right: none; border-bottom: 1px solid #ccc; }
             #file-list-panel { height: 50%; }
             #resizer { display: none; }
-            
             #reader-header { height: 45px; }
-            .controls-top { display: none; } /* Cache boutons PC */
-            #mobile-controls { display: flex; } /* Affiche boutons Mobile */
-            
+            .controls-top { display: none; }
+            #mobile-controls { display: flex; }
             #toc-sidebar { width: 80%; }
-            .toc-item { padding: 12px 15px; font-size: 0.9rem; } /* Un peu plus grand pour le doigt dans le sommaire */
+            .toc-item { padding: 12px 15px; font-size: 0.9rem; }
         }
     </style>
 
@@ -139,7 +130,6 @@
     </div>
 </div>
 
-<!-- Lecteur -->
 <div id="reader-view">
     <div id="reader-header">
         <div class="header-left">
@@ -171,7 +161,6 @@
         </div>
     </div>
 
-    <!-- Barre Mobile -->
     <div id="mobile-controls">
         <div class="mobile-group">
             <button class="mobile-btn" onclick="toggleToc()">☰</button>
@@ -189,7 +178,7 @@
 </div>
 
 <script>
-    const APP_VERSION = "1.1.1";
+    const APP_VERSION = "1.1.2";
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     let allFiles = [], rootFolder = { name: "Racine", path: "", children: {}, files: [] };
@@ -197,16 +186,11 @@
     let currentFontSize = 100, isDarkMode = false, currentFileType = '';
     let isTwoPageMode = false;
     
-    // Variables Swipe
-    let touchStartX = 0;
-    let touchEndX = 0;
-    let touchStartY = 0;
-    let touchEndY = 0;
+    let touchStartX = 0, touchEndX = 0, touchStartY = 0, touchEndY = 0;
 
     const fileInput = document.getElementById('file-input');
     const treeContainer = document.getElementById('folder-tree-container');
     const fileListContentEl = document.getElementById('file-list-content');
-    const currentFolderNameEl = document.getElementById('current-folder-name');
     const readerView = document.getElementById('reader-view');
     const viewerContainer = document.getElementById('viewer-container');
     const loader = document.getElementById('loader');
@@ -216,7 +200,6 @@
     const tocContent = document.getElementById('toc-content');
     const sidebar = document.getElementById('sidebar');
 
-    // Gestion Redimensionnement Sidebar (PC seulement)
     if (!isMobile) {
         let isResizing = false;
         const resizer = document.getElementById('resizer');
@@ -341,25 +324,36 @@
                 viewerContainer.innerHTML = ''; 
                 viewerContainer.appendChild(div);
 
-                // Force 1 page sur mobile par défaut
                 const spreadSetting = isMobile ? 'none' : 'none';
+                // Initialisation correcte
                 initEpubRendition(spreadSetting, 9999);
                 isTwoPageMode = false;
 
-                // --- GESTION DU SWIPE (TACTILE) ---
-                // On écoute uniquement sur le conteneur du livre
-                div.addEventListener('touchstart', handleTouchStart, {passive: true});
-                div.addEventListener('touchend', handleTouchEnd, {passive: true});
-                // Empêche le scroll vertical natif sur le livre pour favoriser le swipe
-                div.addEventListener('touchmove', (e) => { e.preventDefault(); }, {passive: false});
+                // Gestion Tactile (Mobile uniquement)
+                if (isMobile) {
+                    div.addEventListener('touchstart', handleTouchStart, {passive: true});
+                    div.addEventListener('touchend', handleTouchEnd, {passive: true});
+                    // Bloque le scroll vertical SEULEMENT sur mobile pour permettre le swipe
+                    div.addEventListener('touchmove', (e) => { e.preventDefault(); }, {passive: false});
+                }
 
-                epubRendition.on("rendered", () => { loader.style.display = 'none'; updateEpubLocation(); });
-                epubRendition.on("relocated", (loc) => { updateEpubLocation(loc); });
+                epubRendition.on("rendered", () => { 
+                    loader.style.display = 'none'; 
+                    updateEpubLocation(); 
+                });
+                
+                epubRendition.on("relocated", (loc) => { 
+                    updateEpubLocation(loc); 
+                });
 
                 if (epubBook.loaded && epubBook.loaded.navigation) {
                     epubBook.loaded.navigation.then(toc => renderToc(toc)).catch(() => {});
                 }
-                epubRendition.display().catch(err => console.error(err));
+                
+                // Affichage initial garanti
+                epubRendition.display().then(() => {
+                    console.log("Livre affiché");
+                }).catch(err => console.error("Erreur affichage:", err));
                 
                 currentFontSize = 100;
                 if (isDarkMode) applyEpubTheme(true); else applyEpubTheme(false);
@@ -374,7 +368,6 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // --- LOGIQUE SWIPE AMÉLIORÉE ---
     function handleTouchStart(evt) {
         touchStartX = evt.changedTouches[0].screenX;
         touchStartY = evt.changedTouches[0].screenY;
@@ -387,12 +380,11 @@
     function handleGesture() {
         const diffX = touchEndX - touchStartX;
         const diffY = touchEndY - touchStartY;
-        const threshold = 30; // Seuil de sensibilité
+        const threshold = 30;
 
-        // Si le mouvement horizontal est plus grand que le vertical, c'est un swipe
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold) {
-            if (diffX < 0) nextPage(); // Gauche
-            else prevPage(); // Droite
+            if (diffX < 0) nextPage(); 
+            else prevPage(); 
         }
     }
 
@@ -408,6 +400,8 @@
         
         if(currentLoc && currentLoc.then) {
             currentLoc.then(loc => { if(loc && loc.start) epubRendition.display(loc.start.cfi); });
+        } else {
+            epubRendition.display();
         }
     }
 
