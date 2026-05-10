@@ -270,64 +270,69 @@
         isDarkMode = false;
     }
 
+
+
+
     function loadEpub(file) {
         const loaderText = document.getElementById('loader-text');
         loaderText.innerText = "Chargement du livre en mémoire...";
 
-        // ÉTAPE CRITIQUE : Lire le fichier local COMPLET en ArrayBuffer avant tout
         const reader = new FileReader();
         
         reader.onload = function(e) {
             const buffer = e.target.result;
             
             try {
-                // On passe le buffer (données brutes) à ePub, pas le fichier ni l'URL
-                // Cela empêche ePub.js de faire des requêtes HTTP vers GitHub
-
-                epubBook = ePub(buffer, { 
-                    reload: false, 
-                    allowScriptedContent: false // Empêche l'exécution de scripts internes dangereux (et eval)
-                });          
-                      
+                // CONFIGURATION SÉCURISÉE POUR ÉVITER L'ERREUR CSP (eval)
+                // On passe le buffer directement et on désactive les scripts internes
+                epubBook = ePub(buffer, {
+                    reload: false,
+                    allowScriptedContent: false, // Important pour la sécurité et CSP
+                    openAs: 'epub'
+                }); 
+                
                 const div = document.createElement('div');
                 div.id = 'epub-viewer';
                 div.style.width = '100%';
                 div.style.height = '100%';
-                div.style.background = '#fff'; // Fond blanc par défaut
+                div.style.background = '#fff';
                 
-                viewerContainer.innerHTML = ''; // Nettoyer le loader
+                viewerContainer.innerHTML = ''; 
                 viewerContainer.appendChild(div);
 
+                // Rendu explicite sans worker externe si possible
                 epubRendition = epubBook.renderTo("epub-viewer", {
                     width: "100%",
                     height: "100%",
                     flow: "paginated",
-                    manager: "default"
+                    manager: "default",
+                    // Certains workers peuvent causer des soucis CSP, on reste sur le défaut ici
+                    // mais l'option allowScriptedContent: false ci-dessus est la clé
                 });
 
-                // Gestion de l'affichage réussi
                 epubRendition.on("rendered", function() {
                     document.getElementById('loader').style.display = 'none';
                     updateEpubLocation();
                 });
 
-                // Gestion du changement de page
                 epubRendition.on("relocated", function(location) {
                     updateEpubLocation(location);
                 });
 
-                // Chargement du sommaire
                 if (epubBook.loaded && epubBook.loaded.navigation) {
                     epubBook.loaded.navigation.then(toc => renderToc(toc)).catch(() => {});
                 }
 
-                // Affichage initial
                 epubRendition.display().catch(err => {
                     console.error("Erreur d'affichage:", err);
-                    alert("Erreur lors de l'affichage du livre. Vérifiez la console (F12).");
+                    // Ignorer les erreurs mineures de scripts internes
+                    if(err.message.includes('eval') || err.message.includes('CSP')) {
+                         alert("Le livre contient des scripts non autorisés, mais l'affichage devrait fonctionner.");
+                    } else {
+                         alert("Erreur : " + err.message);
+                    }
                 });
 
-                // Initialisation des contrôles
                 currentFontSize = 100;
                 if (isDarkMode) applyEpubTheme(true); else applyEpubTheme(false);
                 
@@ -336,19 +341,19 @@
 
             } catch (err) {
                 console.error(err);
-                alert("Erreur critique lors de l'ouverture du fichier : " + err.message);
+                alert("Erreur critique : " + err.message);
                 document.getElementById('loader').style.display = 'none';
             }
         };
 
         reader.onerror = function() {
-            alert("Impossible de lire le fichier depuis votre disque.");
+            alert("Impossible de lire le fichier.");
             document.getElementById('loader').style.display = 'none';
         };
 
-        // LECTURE DU FICHIER LOCAL
         reader.readAsArrayBuffer(file);
     }
+
 
     function updateEpubLocation(location) {
         if (!location && epubRendition) {
