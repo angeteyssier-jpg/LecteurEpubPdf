@@ -283,8 +283,12 @@
             try {
                 // On passe le buffer (données brutes) à ePub, pas le fichier ni l'URL
                 // Cela empêche ePub.js de faire des requêtes HTTP vers GitHub
-                epubBook = ePub(buffer); 
-                
+
+                epubBook = ePub(buffer, { 
+                    reload: false, 
+                    allowScriptedContent: false // Empêche l'exécution de scripts internes dangereux (et eval)
+                });          
+                      
                 const div = document.createElement('div');
                 div.id = 'epub-viewer';
                 div.style.width = '100%';
