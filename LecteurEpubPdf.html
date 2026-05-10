@@ -64,7 +64,7 @@
     <script src="jszip.min.js"></script>
     <script src="ePub.min.js"></script>
     
-    <!-- PDF.js (CDN pour simplicité, ou téléchargez-le aussi localement) -->
+    <!-- PDF.js (CDN pour simplicité) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         if(typeof pdfjsLib !== 'undefined') {
@@ -75,7 +75,11 @@
 <body>
 
 <header>
-    <h1>Bibliothèque Locale</h1>
+    <!-- ZONE TITRE + VERSION -->
+    <div style="display:flex; align-items:center; gap:10px;">
+        <h1>Bibliothèque Locale</h1>
+        <span id="app-version" style="background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:4px; font-size:0.8em; font-family:monospace;">v...</span>
+    </div>
     <label for="file-input" class="btn">📂 Ouvrir un dossier</label>
     <input type="file" id="file-input" webkitdirectory multiple accept=".epub,.pdf">
 </header>
@@ -121,6 +125,9 @@
 </div>
 
 <script>
+    // --- CONFIGURATION ---
+    const APP_VERSION = "1.0.0"; // Changez ce numéro pour mettre à jour l'affichage
+
     // --- LOGIQUE JAVASCRIPT ---
     let allFiles = [], rootFolder = { name: "Racine", path: "", children: {}, files: [] };
     let epubBook = null, epubRendition = null, pdfDoc = null, pdfPageNum = 1;
@@ -152,13 +159,12 @@
 
     // Chargement Fichiers
     fileInput.addEventListener('change', (e) => {
-        // Vérification des bibliothèques locales
         if (typeof ePub === 'undefined') {
-            alert("ERREUR CRITIQUE : Le fichier 'ePub.min.js' est manquant ou mal nommé dans le dossier.\nVeuillez le télécharger et le placer à côté de ce fichier HTML.");
+            alert("ERREUR : Le fichier 'ePub.min.js' est manquant ou mal nommé dans le dossier.");
             return;
         }
         if (typeof JSZip === 'undefined') {
-            alert("ERREUR CRITIQUE : Le fichier 'jszip.min.js' est manquant ou mal nommé dans le dossier.");
+            alert("ERREUR : Le fichier 'jszip.min.js' est manquant ou mal nommé dans le dossier.");
             return;
         }
 
@@ -270,9 +276,7 @@
         isDarkMode = false;
     }
 
-
-
-
+    // --- FONCTION CORRIGÉE POUR ÉVITER LES ERREURS CORS ET CSP ---
     function loadEpub(file) {
         const loaderText = document.getElementById('loader-text');
         loaderText.innerText = "Chargement du livre en mémoire...";
@@ -283,12 +287,10 @@
             const buffer = e.target.result;
             
             try {
-                // CONFIGURATION SÉCURISÉE POUR ÉVITER L'ERREUR CSP (eval)
-                // On passe le buffer directement et on désactive les scripts internes
+                // Lecture via ArrayBuffer pour éviter les requêtes HTTP vers GitHub
                 epubBook = ePub(buffer, {
                     reload: false,
-                    allowScriptedContent: false, // Important pour la sécurité et CSP
-                    openAs: 'epub'
+                    allowScriptedContent: false // Désactive l'exécution de scripts internes (évite erreur CSP)
                 }); 
                 
                 const div = document.createElement('div');
@@ -300,14 +302,11 @@
                 viewerContainer.innerHTML = ''; 
                 viewerContainer.appendChild(div);
 
-                // Rendu explicite sans worker externe si possible
                 epubRendition = epubBook.renderTo("epub-viewer", {
                     width: "100%",
                     height: "100%",
                     flow: "paginated",
-                    manager: "default",
-                    // Certains workers peuvent causer des soucis CSP, on reste sur le défaut ici
-                    // mais l'option allowScriptedContent: false ci-dessus est la clé
+                    manager: "default"
                 });
 
                 epubRendition.on("rendered", function() {
@@ -325,12 +324,12 @@
 
                 epubRendition.display().catch(err => {
                     console.error("Erreur d'affichage:", err);
-                    // Ignorer les erreurs mineures de scripts internes
                     if(err.message.includes('eval') || err.message.includes('CSP')) {
                          alert("Le livre contient des scripts non autorisés, mais l'affichage devrait fonctionner.");
                     } else {
                          alert("Erreur : " + err.message);
                     }
+                    document.getElementById('loader').style.display = 'none';
                 });
 
                 currentFontSize = 100;
@@ -353,7 +352,6 @@
 
         reader.readAsArrayBuffer(file);
     }
-
 
     function updateEpubLocation(location) {
         if (!location && epubRendition) {
@@ -443,6 +441,17 @@
             page.render({ canvasContext: ctx, viewport: viewport });
         });
     }
+</script>
+
+<!-- SCRIPT FINAL POUR AFFICHER LA VERSION DANS L'EN-TÊTE -->
+<script>
+    window.addEventListener('load', function() {
+        const versionEl = document.getElementById('app-version');
+        if (versionEl) {
+            versionEl.innerText = 'v' + APP_VERSION;
+            console.log("Lecteur démarré - Version : " + APP_VERSION);
+        }
+    });
 </script>
 
 </body>
