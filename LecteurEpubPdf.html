@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lecteur EPUB/PDF - Version Locale</title>
+    <title>Lecteur EPUB/PDF - v1.0.1</title>
     <style>
         :root { --bg-sidebar: #f8f9fa; --bg-main: #ffffff; --border-color: #dee2e6; --highlight: #e9ecef; --active: #007bff; --active-text: #ffffff; --text-main: #333; --text-muted: #6c757d; --sidebar-width: 300px; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); color: var(--text-main); }
@@ -60,11 +60,11 @@
         body.dark-mode { --bg-sidebar: #2c2c2c; --bg-main: #1e1e1e; --border-color: #444; --highlight: #333; --text-main: #e0e0e0; --text-muted: #aaa; }
     </style>
 
-    <!-- CHARGEMENT DES FICHIERS LOCAUX (Assurez-vous qu'ils sont dans le même dossier) -->
+    <!-- CHARGEMENT DES FICHIERS LOCAUX -->
     <script src="jszip.min.js"></script>
     <script src="ePub.min.js"></script>
     
-    <!-- PDF.js (CDN pour simplicité) -->
+    <!-- PDF.js (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         if(typeof pdfjsLib !== 'undefined') {
@@ -75,7 +75,6 @@
 <body>
 
 <header>
-    <!-- ZONE TITRE + VERSION -->
     <div style="display:flex; align-items:center; gap:10px;">
         <h1>Bibliothèque Locale</h1>
         <span id="app-version" style="background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:4px; font-size:0.8em; font-family:monospace;">v...</span>
@@ -104,10 +103,13 @@
             <span id="reader-filename" style="font-weight:500; opacity:0.9;">Livre</span>
         </div>
         <div class="controls-top">
-            <button class="btn-icon" id="btn-toc" onclick="toggleToc()">☰</button>
-            <button class="btn-icon" id="btn-zoom-out" onclick="adjustFontSize(-1)">A-</button>
-            <button class="btn-icon" id="btn-zoom-in" onclick="adjustFontSize(1)">A+</button>
-            <button class="btn-icon" id="btn-theme" onclick="toggleTheme()">🌙</button>
+            <button class="btn-icon" id="btn-toc" onclick="toggleToc()" title="Sommaire">☰</button>
+            <!-- NOUVEAU BOUTON : Mode 1/2 Pages -->
+            <button class="btn-icon" id="btn-spread" onclick="toggleSpread()" title="Changer mode d'affichage (1 ou 2 pages)">📖</button>
+            
+            <button class="btn-icon" id="btn-zoom-out" onclick="adjustFontSize(-1)" title="Réduire texte">A-</button>
+            <button class="btn-icon" id="btn-zoom-in" onclick="adjustFontSize(1)" title="Agrandir texte">A+</button>
+            <button class="btn-icon" id="btn-theme" onclick="toggleTheme()" title="Mode Sombre/Clair">🌙</button>
         </div>
     </div>
     <div id="toc-sidebar"></div>
@@ -126,12 +128,13 @@
 
 <script>
     // --- CONFIGURATION ---
-    const APP_VERSION = "1.0.0"; // Changez ce numéro pour mettre à jour l'affichage
+    const APP_VERSION = "1.0.1"; // Version affichée dans l'en-tête
 
     // --- LOGIQUE JAVASCRIPT ---
     let allFiles = [], rootFolder = { name: "Racine", path: "", children: {}, files: [] };
     let epubBook = null, epubRendition = null, pdfDoc = null, pdfPageNum = 1;
     let currentFontSize = 100, isDarkMode = false, currentFileType = '';
+    let isTwoPageMode = false; // État par défaut : 1 page
 
     const fileInput = document.getElementById('file-input');
     const treeContainer = document.getElementById('folder-tree-container');
@@ -145,6 +148,7 @@
     const readerFilename = document.getElementById('reader-filename');
     const tocSidebar = document.getElementById('toc-sidebar');
     const btnToc = document.getElementById('btn-toc');
+    const btnSpread = document.getElementById('btn-spread');
     const btnZoomIn = document.getElementById('btn-zoom-in');
     const btnZoomOut = document.getElementById('btn-zoom-out');
     const btnTheme = document.getElementById('btn-theme');
@@ -260,6 +264,7 @@
         
         const isEpub = currentFileType === 'epub';
         btnToc.style.display = isEpub ? 'flex' : 'none';
+        btnSpread.style.display = isEpub ? 'flex' : 'none'; // Afficher le bouton spread seulement pour EPUB
         btnZoomIn.style.display = isEpub ? 'flex' : 'none';
         btnZoomOut.style.display = isEpub ? 'flex' : 'none';
         btnTheme.style.display = isEpub ? 'flex' : 'none';
@@ -302,12 +307,18 @@
                 viewerContainer.innerHTML = ''; 
                 viewerContainer.appendChild(div);
 
+                // Configuration par défaut : 1 page (spread: 'none')
                 epubRendition = epubBook.renderTo("epub-viewer", {
                     width: "100%",
                     height: "100%",
                     flow: "paginated",
-                    manager: "default"
+                    manager: "default",
+                    spread: 'none',        // Démarrage en 1 page
+                    minSpreadWidth: 9999   // Empêche le passage automatique en 2 pages
                 });
+                
+                // Initialisation de l'état du bouton
+                isTwoPageMode = false;
 
                 epubRendition.on("rendered", function() {
                     document.getElementById('loader').style.display = 'none';
@@ -351,6 +362,26 @@
         };
 
         reader.readAsArrayBuffer(file);
+    }
+
+    // --- NOUVELLE FONCTION : BASCULER 1 PAGE / 2 PAGES ---
+    function toggleSpread() {
+        if (!epubRendition) return;
+
+        isTwoPageMode = !isTwoPageMode; // Inverse l'état
+
+        if (isTwoPageMode) {
+            // Mode 2 pages
+            epubRendition.manager.spread('auto'); 
+            epubRendition.settings.spread = 'auto';
+        } else {
+            // Mode 1 page
+            epubRendition.manager.spread('none');
+            epubRendition.settings.spread = 'none';
+        }
+        
+        // Force le recalcul de l'affichage
+        epubRendition.resize();
     }
 
     function updateEpubLocation(location) {
